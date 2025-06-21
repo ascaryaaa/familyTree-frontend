@@ -1,103 +1,115 @@
-import Image from "next/image";
+'use client';
+
+import React from 'react';
+import { ReactFlow, Background, Controls, Node, Edge } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+
+const familyData = [
+  // First generation (Founders)
+  { id: '1', name: 'Edward Lancaster', gender: 'male', dob: '1940-06-15', father: null, mother: null, partner: ['2'] },
+  { id: '2', name: 'Beatrice Lancaster', gender: 'female', dob: '1942-03-22', father: null, mother: null, partner: ['1'] },
+
+  // Second generation (Children of Edward & Beatrice)
+  { id: '3', name: 'Thomas Lancaster', gender: 'male', dob: '1965-10-10', father: '1', mother: '2', partner: ['4'] },
+  { id: '4', name: 'Eleanor Hayes', gender: 'female', dob: '1967-12-01', father: null, mother: null, partner: ['3'] },
+
+  { id: '5', name: 'Charlotte Lancaster', gender: 'female', dob: '1968-08-25', father: '1', mother: '2', partner: ['6'] },
+  { id: '6', name: 'Jonathan Clarke', gender: 'male', dob: '1966-02-18', father: null, mother: null, partner: ['5'] },
+
+  { id: '7', name: 'Henry Lancaster', gender: 'male', dob: '1971-04-14', father: '1', mother: '2', partner: ['8'] },
+  { id: '8', name: 'Vivian Brooks', gender: 'female', dob: '1973-07-09', father: null, mother: null, partner: ['7'] },
+
+  // Third generation (Grandchildren of Edward & Beatrice)
+  { id: '9', name: 'Oliver Lancaster', gender: 'male', dob: '1990-01-20', father: '3', mother: '4', partner: ['10'] },
+  { id: '10', name: 'Lily Morgan', gender: 'female', dob: '1992-06-10', father: null, mother: null, partner: ['9'] },
+
+  { id: '11', name: 'Amelia Clarke', gender: 'female', dob: '1993-03-15', father: '6', mother: '5', partner: ['12'] },
+  { id: '12', name: 'Ethan Gray', gender: 'male', dob: '1991-09-02', father: null, mother: null, partner: ['11'] },
+
+  { id: '13', name: 'Sebastian Clarke', gender: 'male', dob: '1996-11-28', father: '6', mother: '5', partner: [] },
+
+  { id: '14', name: 'Lucas Lancaster', gender: 'male', dob: '1995-07-07', father: '7', mother: '8', partner: ['15'] },
+  { id: '15', name: 'Isla Bennett', gender: 'female', dob: '1997-05-13', father: null, mother: null, partner: ['14'] },
+
+  // Fourth generation (Great-grandchildren of Edward & Beatrice)
+  { id: '16', name: 'Noah Lancaster', gender: 'male', dob: '2020-10-01', father: '9', mother: '10', partner: [] },
+  { id: '17', name: 'Grace Lancaster', gender: 'female', dob: '2022-04-03', father: '9', mother: '10', partner: [] },
+
+  { id: '18', name: 'Leo Gray', gender: 'male', dob: '2021-12-11', father: '12', mother: '11', partner: [] },
+
+  { id: '19', name: 'Ella Lancaster', gender: 'female', dob: '2023-03-18', father: '14', mother: '15', partner: [] }
+];
+
+
+// Map of people for lookup
+const personMap = new Map(familyData.map((p) => [p.id, p]));
+
+// Determine generation level per person
+const generationMap = new Map<string, number>();
+function getGeneration(id: string): number {
+  if (generationMap.has(id)) return generationMap.get(id)!;
+  const person = personMap.get(id);
+  if (!person) return 0;
+  const fatherGen = person.father ? getGeneration(person.father) + 1 : 0;
+  const motherGen = person.mother ? getGeneration(person.mother) + 1 : 0;
+  const gen = Math.max(fatherGen, motherGen);
+  generationMap.set(id, gen);
+  return gen;
+}
+familyData.forEach((person) => getGeneration(person.id));
+
+// Group people by generation
+const generations = new Map<number, string[]>();
+generationMap.forEach((level, id) => {
+  if (!generations.has(level)) generations.set(level, []);
+  generations.get(level)!.push(id);
+});
+
+// Create nodes with vertical layout
+const nodes: Node[] = [];
+generations.forEach((ids, level) => {
+  ids.forEach((id, index) => {
+    const person = personMap.get(id)!;
+    nodes.push({
+      id: person.id,
+      data: {
+        label: `${person.name} (${person.gender === 'male' ? '♂' : '♀'})`,
+      },
+      position: {
+        x: index * 250,
+        y: level * 200, // ← this ensures vertical layout
+      },
+      type: 'default',
+    });
+  });
+});
+
+// Parent → child edges
+const edges: Edge[] = [];
+familyData.forEach((person) => {
+  if (person.father) {
+    edges.push({
+      id: `e${person.father}-${person.id}`,
+      source: person.father,
+      target: person.id,
+    });
+  }
+  if (person.mother) {
+    edges.push({
+      id: `e${person.mother}-${person.id}`,
+      source: person.mother,
+      target: person.id,
+    });
+  }
+});
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+    <div style={{ width: '100%', height: '100vh' }}>
+      <ReactFlow nodes={nodes} edges={edges} fitView>
+        <Background />
+        <Controls />
+      </ReactFlow>
     </div>
   );
 }
