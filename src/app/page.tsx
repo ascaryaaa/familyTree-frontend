@@ -10,6 +10,7 @@ import {
   useEdgesState,
   addEdge,
   BackgroundVariant,
+  Position,
   type Node,
   type Edge,
   type Connection,
@@ -41,6 +42,7 @@ const familyData = [
 // Setup generations
 const personMap = new Map(familyData.map((p) => [p.id, p]));
 const generationMap = new Map<string, number>();
+
 function getGeneration(id: string): number {
   if (generationMap.has(id)) return generationMap.get(id)!;
   const person = personMap.get(id);
@@ -53,33 +55,86 @@ function getGeneration(id: string): number {
 }
 familyData.forEach((p) => getGeneration(p.id));
 
-// Group by generation for layout
+// Group by generation
 const generations = new Map<number, string[]>();
 generationMap.forEach((level, id) => {
   if (!generations.has(level)) generations.set(level, []);
   generations.get(level)!.push(id);
 });
 
-// Create nodes
+const coupleMap = new Set<string>();
 const nodes: Node[] = [];
+const nodeWidth = 172;
+const spacingX = 200;
+const spacingY = 160;
+
+// Place nodes
 generations.forEach((ids, level) => {
-  ids.forEach((id, index) => {
+  let x = 0;
+  const used = new Set<string>();
+
+  ids.forEach((id) => {
+    if (used.has(id)) return;
     const p = personMap.get(id)!;
-    nodes.push({
-      id: p.id,
-      data: { label: `${p.name} (${p.gender === 'male' ? '♂' : '♀'})` },
-      position: {
-        x: index * 200,
-        y: level * 200,
-      },
-    });
+    const partnerId = p.partner?.[0];
+    const baseY = level * spacingY;
+
+    if (
+      partnerId &&
+      personMap.get(partnerId)?.partner?.includes(p.id) &&
+      !used.has(partnerId)
+    ) {
+      // Couple side-by-side
+      nodes.push({
+        id: p.id,
+        data: { label: `${p.name}` },
+        position: { x, y: baseY },
+        sourcePosition: Position.Bottom,
+        targetPosition: Position.Top,
+      });
+      nodes.push({
+        id: partnerId,
+        data: { label: `${personMap.get(partnerId)!.name}` },
+        position: { x: x + nodeWidth + 30, y: baseY },
+        sourcePosition: Position.Bottom,
+        targetPosition: Position.Top,
+      });
+      used.add(p.id);
+      used.add(partnerId);
+      coupleMap.add([p.id, partnerId].sort().join('-'));
+      x += spacingX * 2;
+    } else {
+      // Single
+      nodes.push({
+        id: p.id,
+        data: { label: `${p.name}` },
+        position: { x, y: baseY },
+        sourcePosition: Position.Bottom,
+        targetPosition: Position.Top,
+      });
+      used.add(p.id);
+      x += spacingX;
+    }
   });
 });
 
-// Create colored edges
+// Helper to find node positions
+const nodePos = new Map(nodes.map((n) => [n.id, n.position.x]));
+
+// Align children under mid-point between parents
+familyData.forEach((p) => {
+  if (p.father && p.mother && nodePos.has(p.father) && nodePos.has(p.mother)) {
+    const fatherX = nodePos.get(p.father)!;
+    const motherX = nodePos.get(p.mother)!;
+    const centerX = (fatherX + motherX) / 2;
+    const node = nodes.find((n) => n.id === p.id);
+    if (node) node.position.x = centerX;
+  }
+});
+
 const edges: Edge[] = [];
 
-// Parent-child (blue)
+// Parent-child edges (let default handle positions work)
 familyData.forEach((p) => {
   if (p.father) {
     edges.push({
@@ -99,20 +154,17 @@ familyData.forEach((p) => {
   }
 });
 
-// Partner edges (green, prevent duplicates)
-const partnerSet = new Set<string>();
-familyData.forEach((p) => {
-  p.partner?.forEach((partnerId) => {
-    const key = [p.id, partnerId].sort().join('-');
-    if (!partnerSet.has(key)) {
-      partnerSet.add(key);
-      edges.push({
-        id: `e${p.id}-${partnerId}`,
-        source: p.id,
-        target: partnerId,
-        style: { stroke: 'green', strokeDasharray: '5,5' },
-      });
-    }
+// Partner edges (green dashed line from top to top)
+coupleMap.forEach((key) => {
+  const [id1, id2] = key.split('-');
+  edges.push({
+    id: `epartner-${id1}-${id2}`,
+    source: id1,
+    target: id2,
+    style: {
+      stroke: 'green',
+      strokeDasharray: '5,5',
+    },
   });
 });
 
@@ -124,12 +176,10 @@ export default function App() {
     (params: Edge | Connection) =>
       setEdges((eds) =>
         addEdge(params, eds).map((edge, i, arr) =>
-          i === arr.length - 1
-            ? { ...edge, style: { stroke: 'black' } }
-            : edge
+          i === arr.length - 1 ? { ...edge, style: { stroke: 'black' } } : edge
         )
       ),
-    [setEdges],
+    [setEdges]
   );
 
   return (
