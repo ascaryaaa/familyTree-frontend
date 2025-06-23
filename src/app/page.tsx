@@ -14,6 +14,7 @@ import {
   type Node,
   type Edge,
   type Connection,
+  Handle,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -26,8 +27,8 @@ const familyData = [
   { id: '6', name: 'Jonathan Clarke', gender: 'male', dob: '1966-02-18', father: null, mother: null, partner: ['5'] },
   { id: '7', name: 'Henry Lancaster', gender: 'male', dob: '1971-04-14', father: '1', mother: '2', partner: ['8'] },
   { id: '8', name: 'Vivian Brooks', gender: 'female', dob: '1973-07-09', father: null, mother: null, partner: ['7'] },
-  { id: '9', name: 'Oliver Lancaster', gender: 'male', dob: '1990-01-20', father: '3', mother: '4', partner: ['10'] },
-  { id: '10', name: 'Lily Morgan', gender: 'female', dob: '1992-06-10', father: null, mother: null, partner: ['9'] },
+  { id: '9', name: 'Lily Morgan', gender: 'female', dob: '1992-06-10', father: null, mother: null, partner: ['10'] },
+  { id: '10', name: 'Oliver Lancaster', gender: 'male', dob: '1990-01-20', father: '3', mother: '4', partner: ['9'] },
   { id: '11', name: 'Amelia Clarke', gender: 'female', dob: '1993-03-15', father: '6', mother: '5', partner: ['12'] },
   { id: '12', name: 'Ethan Gray', gender: 'male', dob: '1991-09-02', father: null, mother: null, partner: ['11'] },
   { id: '13', name: 'Sebastian Clarke', gender: 'male', dob: '1996-11-28', father: '6', mother: '5', partner: [] },
@@ -38,6 +39,19 @@ const familyData = [
   { id: '18', name: 'Leo Gray', gender: 'male', dob: '2021-12-11', father: '12', mother: '11', partner: [] },
   { id: '19', name: 'Ella Lancaster', gender: 'female', dob: '2023-03-18', father: '14', mother: '15', partner: [] },
 ];
+
+// Custom node component with 4 handles
+const PersonNode = ({ id, data }: { id: string; data: { label: string } }) => {
+  return (
+    <div style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '4px', background: 'white' }}>
+      <Handle type="target" position={Position.Top} id={`${id}-top`} />
+      <Handle type="source" position={Position.Bottom} id={`${id}-bottom`} />
+      <Handle type="target" position={Position.Left} id={`${id}-left`} />
+      <Handle type="source" position={Position.Right} id={`${id}-right`} />
+      <div>{data.label}</div>
+    </div>
+  );
+};
 
 // Setup generations
 const personMap = new Map(familyData.map((p) => [p.id, p]));
@@ -89,15 +103,13 @@ generations.forEach((ids, level) => {
         id: p.id,
         data: { label: `${p.name}` },
         position: { x, y: baseY },
-        sourcePosition: Position.Bottom,
-        targetPosition: Position.Top,
+        type: 'person',
       });
       nodes.push({
         id: partnerId,
         data: { label: `${personMap.get(partnerId)!.name}` },
         position: { x: x + nodeWidth + 30, y: baseY },
-        sourcePosition: Position.Bottom,
-        targetPosition: Position.Top,
+        type: 'person',
       });
       used.add(p.id);
       used.add(partnerId);
@@ -109,8 +121,7 @@ generations.forEach((ids, level) => {
         id: p.id,
         data: { label: `${p.name}` },
         position: { x, y: baseY },
-        sourcePosition: Position.Bottom,
-        targetPosition: Position.Top,
+        type: 'person',
       });
       used.add(p.id);
       x += spacingX;
@@ -134,13 +145,15 @@ familyData.forEach((p) => {
 
 const edges: Edge[] = [];
 
-// Parent-child edges (let default handle positions work)
+// Parent-child edges (using top and bottom handles)
 familyData.forEach((p) => {
   if (p.father) {
     edges.push({
       id: `e${p.father}-${p.id}`,
       source: p.father,
+      sourceHandle: `${p.father}-bottom`,
       target: p.id,
+      targetHandle: `${p.id}-top`,
       style: { stroke: 'blue' },
     });
   }
@@ -148,25 +161,33 @@ familyData.forEach((p) => {
     edges.push({
       id: `e${p.mother}-${p.id}`,
       source: p.mother,
+      sourceHandle: `${p.mother}-bottom`,
       target: p.id,
+      targetHandle: `${p.id}-top`,
       style: { stroke: 'blue' },
     });
   }
 });
 
-// Partner edges (green dashed line from top to top)
+// Partner edges (using left and right handles)
 coupleMap.forEach((key) => {
   const [id1, id2] = key.split('-');
   edges.push({
     id: `epartner-${id1}-${id2}`,
     source: id1,
+    sourceHandle: `${id1}-right`,
     target: id2,
+    targetHandle: `${id2}-left`,
     style: {
       stroke: 'green',
       strokeDasharray: '5,5',
     },
   });
 });
+
+const nodeTypes = {
+  person: PersonNode,
+};
 
 export default function App() {
   const [nodeState, , onNodesChange] = useNodesState(nodes);
@@ -187,6 +208,7 @@ export default function App() {
       <ReactFlow
         nodes={nodeState}
         edges={edgeState}
+        nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
