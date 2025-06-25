@@ -37,15 +37,24 @@ const FamilyTree = () => {
   const coupleMap = new Set<string>();
   const nodes: Node[] = [];
   const nodeWidth = 172;
+  const nodeHeight = 50;
   const spacingX = 200;
-  const spacingY = 160;
+  const spacingY = 120;
+  const partnerSpacing = 30;
 
-  // Place nodes
+  // First pass: place all nodes with proper spacing
   generations.forEach((ids, level) => {
+    // Sort by birth year to maintain chronological order
+    const sortedIds = [...ids].sort((a, b) => {
+      const personA = familyData.find(p => p.id === a)!;
+      const personB = familyData.find(p => p.id === b)!;
+      return new Date(personA.dob).getTime() - new Date(personB.dob).getTime();
+    });
+
     let x = 0;
     const used = new Set<string>();
 
-    ids.forEach((id) => {
+    sortedIds.forEach((id) => {
       if (used.has(id)) return;
       const p = familyData.find(p => p.id === id)!;
       const partnerId = p.partner?.[0];
@@ -66,13 +75,13 @@ const FamilyTree = () => {
         nodes.push({
           id: partnerId,
           data: { label: `${familyData.find(p => p.id === partnerId)!.name}` },
-          position: { x: x + nodeWidth + 30, y: baseY },
+          position: { x: x + nodeWidth + partnerSpacing, y: baseY },
           type: 'person',
         });
         used.add(p.id);
         used.add(partnerId);
         coupleMap.add([p.id, partnerId].sort().join('-'));
-        x += spacingX * 2;
+        x += nodeWidth * 2 + partnerSpacing + spacingX;
       } else {
         // Single
         nodes.push({
@@ -82,24 +91,80 @@ const FamilyTree = () => {
           type: 'person',
         });
         used.add(p.id);
-        x += spacingX;
+        x += nodeWidth + spacingX;
       }
     });
   });
 
-  // Helper to find node positions
-  const nodePos = new Map(nodes.map((n) => [n.id, n.position.x]));
+  // Second pass: align children under parents while maintaining order
+  const nodePositions = new Map(nodes.map(n => [n.id, n.position]));
+  const childrenMap = new Map<string, {couple: string[], children: string[]}>();
 
-  // Align children under mid-point between parents
-  familyData.forEach((p) => {
-    if (p.father && p.mother && nodePos.has(p.father) && nodePos.has(p.mother)) {
-      const fatherX = nodePos.get(p.father)!;
-      const motherX = nodePos.get(p.mother)!;
-      const centerX = (fatherX + motherX) / 2;
-      const node = nodes.find((n) => n.id === p.id);
-      if (node) node.position.x = centerX;
+  // Group children by parent couple in chronological order
+  familyData.forEach(person => {
+    if (person.father && person.mother) {
+      const coupleKey = [person.father, person.mother].sort().join('-');
+      if (!childrenMap.has(coupleKey)) {
+        childrenMap.set(coupleKey, {
+          couple: [person.father, person.mother],
+          children: []
+        });
+      }
+      childrenMap.get(coupleKey)!.children.push(person.id);
     }
   });
+
+  // Sort children by birth date
+  childrenMap.forEach((value) => {
+    value.children.sort((a, b) => {
+      const personA = familyData.find(p => p.id === a)!;
+      const personB = familyData.find(p => p.id === b)!;
+      return new Date(personA.dob).getTime() - new Date(personB.dob).getTime();
+    });
+  });
+
+  // Position children centered below their parents, maintaining order
+  Array.from(childrenMap.values()).forEach(({couple, children}) => {
+    const [parent1, parent2] = couple;
+    const parent1Pos = nodePositions.get(parent1);
+    const parent2Pos = nodePositions.get(parent2);
+
+    if (parent1Pos && parent2Pos) {
+      const centerX = (parent1Pos.x + parent2Pos.x) / 2;
+      const childrenPerRow = Math.min(3, children.length);
+      const childSpacing = nodeWidth * 1.5;
+
+      children.forEach((childId, index) => {
+        const childNode = nodes.find(n => n.id === childId);
+        if (childNode) {
+          const col = index % childrenPerRow;
+          const offsetX = (col - (childrenPerRow - 1) / 2) * childSpacing;
+          childNode.position = {
+            x: centerX + offsetX,
+            y: childNode.position.y
+          };
+        }
+      });
+    }
+  });
+
+  // Third pass: adjust positions to prevent overlap
+  const adjustedNodes = [...nodes];
+  for (let i = 0; i < adjustedNodes.length; i++) {
+    for (let j = i + 1; j < adjustedNodes.length; j++) {
+      const nodeA = adjustedNodes[i];
+      const nodeB = adjustedNodes[j];
+
+      if (
+        Math.abs(nodeA.position.x - nodeB.position.x) < nodeWidth &&
+        Math.abs(nodeA.position.y - nodeB.position.y) < nodeHeight
+      ) {
+        // Nodes are overlapping, adjust position
+        const direction = nodeA.position.x < nodeB.position.x ? 1 : -1;
+        nodeB.position.x += direction * (nodeWidth - Math.abs(nodeA.position.x - nodeB.position.x) + 20);
+      }
+    }
+  }
 
   const edges: Edge[] = [];
 
@@ -144,7 +209,7 @@ const FamilyTree = () => {
     });
   });
 
-  const [nodeState, , onNodesChange] = useNodesState(nodes);
+  const [nodeState, , onNodesChange] = useNodesState(adjustedNodes);
   const [edgeState, setEdges, onEdgesChange] = useEdgesState(edges);
 
   const onConnect = useCallback(
