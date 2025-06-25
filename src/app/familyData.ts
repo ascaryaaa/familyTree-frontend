@@ -1,6 +1,5 @@
 import { Person } from "./types/person";
 
-
 export const familyData: Person[] = [
   { id: '1', name: 'Edward Lancaster', gender: 'male', dob: '1940-06-15', father: null, mother: null, partner: ['2'] },
   { id: '2', name: 'Beatrice Lancaster', gender: 'female', dob: '1942-03-22', father: null, mother: null, partner: ['1'] },

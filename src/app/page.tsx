@@ -13,6 +13,7 @@ import {
   type Node,
   type Edge,
   type Connection,
+  ConnectionLineType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { familyData } from './familyData';
@@ -102,7 +103,6 @@ const FamilyTree = () => {
 
   const edges: Edge[] = [];
 
-  // Parent-child edges (using top and bottom handles) - CHANGED TO STRAIGHT LINES
   familyData.forEach((p) => {
     if (p.father) {
       edges.push({
@@ -111,8 +111,8 @@ const FamilyTree = () => {
         sourceHandle: `${p.father}-bottom`,
         target: p.id,
         targetHandle: `${p.id}-top`,
+        type: 'smoothstep',
         style: { stroke: 'blue' },
-        type: 'straight', // This makes the line straight
       });
     }
     if (p.mother) {
@@ -122,13 +122,12 @@ const FamilyTree = () => {
         sourceHandle: `${p.mother}-bottom`,
         target: p.id,
         targetHandle: `${p.id}-top`,
+        type: 'smoothstep',
         style: { stroke: 'blue' },
-        type: 'straight', // This makes the line straight
       });
     }
   });
 
-  // Partner edges (using left and right handles) - CHANGED TO STRAIGHT LINES
   coupleMap.forEach((key) => {
     const [id1, id2] = key.split('-');
     edges.push({
@@ -137,7 +136,7 @@ const FamilyTree = () => {
       sourceHandle: `${id1}-right`,
       target: id2,
       targetHandle: `${id2}-left`,
-      type: 'straight', // This makes the line straight
+      type: 'smoothstep',
       style: {
         stroke: 'green',
         strokeDasharray: '5,5',
@@ -151,20 +150,23 @@ const FamilyTree = () => {
   const onConnect = useCallback(
     (params: Edge | Connection) =>
       setEdges((eds) => {
-        const newEdge = addEdge(
+        const edge = addEdge(
           {
             ...params,
-            type: 'straight', // Make new connections straight too
+            type: 'smoothstep',
           },
           eds
         );
-        // Add style to the newly created edge(s)
-        const targetEdgeId =
-          typeof params === 'object' && 'id' in params ? params.id : undefined;
-        return newEdge.map(edge =>
-          edge.id === targetEdgeId
-            ? { ...edge, style: { stroke: 'black' } }
-            : edge
+        let targetEdgeId: string;
+        if (typeof params === 'object' && 'id' in params) {
+          targetEdgeId = params.id;
+        } else {
+          targetEdgeId = '';
+        }
+        return edge.map(e =>
+          e.id === targetEdgeId
+            ? { ...e, style: { stroke: 'black' } }
+            : e
         );
       }),
     [setEdges]
@@ -179,6 +181,7 @@ const FamilyTree = () => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        connectionLineType={ConnectionLineType.SmoothStep}
         fitView
       >
         <Controls />
